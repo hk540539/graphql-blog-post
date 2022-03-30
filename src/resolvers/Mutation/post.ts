@@ -1,5 +1,6 @@
 import { Post, Prisma } from "@prisma/client";
 import { Context } from "../../index";
+import { canUserMutatePost } from "../../utils/canUserMutatePost";
 
 interface PostArgs {
   post: { title?: string; content?: string };
@@ -14,8 +15,14 @@ export const postResolvers = {
   postCreate: async (
     parent: any,
     { post }: PostArgs,
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
+    if (!userInfo) {
+      return {
+        userErrors: [{ message: "Forbidden access(unauthenticated)" }],
+        post: null,
+      };
+    }
     const { title, content } = post;
     if (!title || !content) {
       return {
@@ -29,15 +36,29 @@ export const postResolvers = {
     return {
       userErrors: [],
       post: prisma.post.create({
-        data: { title, content, authorId: 1 },
+        data: { title, content, authorId: userInfo.userId },
       }),
     };
   },
   postUpdate: async (
     _: any,
     { post, postId }: { postId: string; post: PostArgs["post"] },
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
+    if (!userInfo) {
+      return {
+        userErrors: [{ message: "Forbidden access(unauthenticated)" }],
+        post: null,
+      };
+    }
+    const error = await canUserMutatePost({
+      userId: userInfo.userId,
+      postId: Number(postId),
+      prisma,
+    });
+    if (error) {
+      return error;
+    }
     const { title, content } = post;
     if (!title && !content) {
       return {
@@ -70,8 +91,22 @@ export const postResolvers = {
   postDelete: async (
     _: any,
     { postId }: { postId: string },
-    { prisma }: Context
+    { prisma, userInfo }: Context
   ): Promise<PostPayloadType> => {
+    if (!userInfo) {
+      return {
+        userErrors: [{ message: "Forbidden access(unauthenticated)" }],
+        post: null,
+      };
+    }
+    const error = await canUserMutatePost({
+      userId: userInfo.userId,
+      postId: Number(postId),
+      prisma,
+    });
+    if (error) {
+      return error;
+    }
     const post = await prisma.post.findUnique({
       where: { id: Number(postId) },
     });
@@ -87,6 +122,82 @@ export const postResolvers = {
     return {
       userErrors: [],
       post: post,
+    };
+  },
+  postPublish: async (
+    _: any,
+    { postId }: { postId: string },
+    { prisma, userInfo }: Context
+  ): Promise<PostPayloadType> => {
+    if (!userInfo) {
+      return {
+        userErrors: [{ message: "Forbidden access(unauthenticated)" }],
+        post: null,
+      };
+    }
+    const error = await canUserMutatePost({
+      userId: userInfo.userId,
+      postId: Number(postId),
+      prisma,
+    });
+    if (error) {
+      return error;
+    }
+    const existingPost = await prisma.post.findUnique({
+      where: { id: Number(postId) },
+    });
+    if (!existingPost) {
+      return {
+        userErrors: [{ message: "Post doesn't exists" }],
+        post: null,
+      };
+    }
+    return {
+      userErrors: [],
+      post: prisma.post.update({
+        data: {
+          published: true,
+        },
+        where: { id: Number(postId) },
+      }),
+    };
+  },
+  postUnpublish: async (
+    _: any,
+    { postId }: { postId: string },
+    { prisma, userInfo }: Context
+  ): Promise<PostPayloadType> => {
+    if (!userInfo) {
+      return {
+        userErrors: [{ message: "Forbidden access(unauthenticated)" }],
+        post: null,
+      };
+    }
+    const error = await canUserMutatePost({
+      userId: userInfo.userId,
+      postId: Number(postId),
+      prisma,
+    });
+    if (error) {
+      return error;
+    }
+    const existingPost = await prisma.post.findUnique({
+      where: { id: Number(postId) },
+    });
+    if (!existingPost) {
+      return {
+        userErrors: [{ message: "Post doesn't exists" }],
+        post: null,
+      };
+    }
+    return {
+      userErrors: [],
+      post: prisma.post.update({
+        data: {
+          published: false,
+        },
+        where: { id: Number(postId) },
+      }),
     };
   },
 };
