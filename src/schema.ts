@@ -5,16 +5,27 @@ export const typeDefs = gql`
     hello: String!
   }
 
-  type Post{
-    User
+  type Post {
+    id: ID!
+    title: String!
+    content: String!
+    createdAt: String!
+    published: Boolean!
+    user: User!
   }
 
-  type User{
-    Profile
-    [Post]
+  type User {
+    id: ID!
+    name: String
+    email: String!
+    createdAt: String!
+    profile: Profile!
+    post: [Post!]!
   }
 
-  type profile{
-    User
+  type profile {
+    id: ID!
+    bio: String!
+    user: User!
   }
 `;
